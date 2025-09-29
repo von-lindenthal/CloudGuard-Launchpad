@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install -r app/requirements.txt -r app/requirements-dev.txt
+
+      - name: Lint
+        run: |
+          . .venv/bin/activate
+          flake8 app/src app/tests
+
+      - name: Unit tests
+        run: |
+          . .venv/bin/activate
+          pytest
+
+      - name: Static App Security Testing (Bandit)
+        run: |
+          . .venv/bin/activate
+          bandit -r app/src
+
+      - name: Dependency Audit (pip-audit)
+        run: |
+          . .venv/bin/activate
+          pip-audit -r app/requirements.txt
+
+      - name: Container Build
+        run: |
+          docker build -t cyber-sec-app:${GITHUB_SHA} .
+
+      - name: Container Scan (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: cyber-sec-app:${GITHUB_SHA}
+          format: table
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Terraform Init
+        working-directory: infrastructure
+        run: terraform init
+
+      - name: Terraform Validate
+        working-directory: infrastructure
+        run: terraform validate
+
+      - name: Terraform Security Scan (tfsec)
+        uses: aquasecurity/tfsec-pr-commenter-action@v1.28.1
+        with:
+          working_directory: infrastructure
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Terraform Policy Check (checkov)
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: infrastructure
+          framework: terraform
+
+  deploy:
+    needs: build-test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Terraform Apply
+        working-directory: infrastructure
+        env:
+          TF_VAR_project_name: cyber-sec-project
+        run: |
+          terraform init
+          terraform apply -auto-approve
+
+      - name: Push Image to ECR
+        env:
+          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+        run: |
+          aws ecr get-login-password | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+          docker tag cyber-sec-app:${GITHUB_SHA} ${ECR_REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA}
+          docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA}
+
+      - name: Update ECS Service
+        env:
+          ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
+          ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
+          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+        run: |
+          aws ecs update-service \
+            --cluster ${ECS_CLUSTER} \
+            --service ${ECS_SERVICE} \
+            --force-new-deployment \
+            --deployment-configuration "maximumPercent=200,minimumHealthyPercent=100" \
+            --region us-east-1
