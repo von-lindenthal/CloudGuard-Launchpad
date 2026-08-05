@@ -10,6 +10,11 @@ variable "alb_access_cidrs" {
   type = list(string)
 }
 
+variable "bastion_access_cidrs" {
+  type    = list(string)
+  default = []
+}
+
 variable "app_port" {
   type    = number
   default = 8080

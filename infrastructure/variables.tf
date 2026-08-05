@@ -45,6 +45,12 @@ variable "alb_access_cidrs" {
   default     = ["0.0.0.0/0"]
 }
 
+variable "bastion_access_cidrs" {
+  description = "CIDR blocks allowed SSH access to the bastion host. Empty by default to avoid exposing SSH publicly."
+  type        = list(string)
+  default     = []
+}
+
 variable "alb_certificate_arn" {
   description = "ACM certificate ARN for enabling HTTPS on the load balancer. Leave blank to disable HTTPS."
   type        = string

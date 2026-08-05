@@ -20,6 +20,7 @@ resource "aws_db_instance" "this" {
   password                = data.aws_ssm_parameter.db_password.value
   multi_az                = var.database_config.multi_az
   backup_retention_period = var.database_config.backup_retention_days
+  storage_encrypted       = true
   skip_final_snapshot     = false
   deletion_protection     = true
   publicly_accessible     = false

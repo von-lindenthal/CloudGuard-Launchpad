@@ -1,5 +1,3 @@
-import json
-
 from app.src.main import create_app
 
 

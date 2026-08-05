@@ -42,6 +42,7 @@ module "security" {
   project_name                  = var.project_name
   vpc_id                        = module.network.vpc_id
   alb_access_cidrs              = var.alb_access_cidrs
+  bastion_access_cidrs          = var.bastion_access_cidrs
   app_port                      = var.app_port
   database_port                 = var.database_config.port
   ecs_task_role_policies        = var.ecs_task_role_policies
