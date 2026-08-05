@@ -45,6 +45,7 @@ module "security" {
   bastion_access_cidrs          = var.bastion_access_cidrs
   app_port                      = var.app_port
   database_port                 = var.database_config.port
+  db_password_ssm_param_name    = var.database_config.password_ssm_param
   ecs_task_role_policies        = var.ecs_task_role_policies
   ecs_task_execution_role_policies = var.ecs_task_execution_role_policies
 }

@@ -11,6 +11,14 @@ data "aws_iam_policy_document" "ecs_task_assume_role" {
   }
 }
 
+data "aws_caller_identity" "current" {}
+
+data "aws_region" "current" {}
+
+locals {
+  db_password_ssm_param_arn = "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${var.db_password_ssm_param_name}"
+}
+
 resource "aws_iam_role" "ecs_task" {
   name               = "${var.project_name}-ecs-task-role"
   assume_role_policy = data.aws_iam_policy_document.ecs_task_assume_role.json
@@ -32,6 +40,33 @@ resource "aws_iam_role" "ecs_execution" {
 resource "aws_iam_role_policy_attachment" "ecs_execution_basic" {
   role       = aws_iam_role.ecs_execution.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+# AmazonECSTaskExecutionRolePolicy does not grant SSM/KMS access needed to resolve container secrets.
+data "aws_iam_policy_document" "ecs_execution_db_secret" {
+  statement {
+    effect    = "Allow"
+    actions   = ["ssm:GetParameters"]
+    resources = [local.db_password_ssm_param_arn]
+  }
+
+  statement {
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["ssm.${data.aws_region.current.name}.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "ecs_execution_db_secret" {
+  name   = "${var.project_name}-ecs-execution-db-secret"
+  role   = aws_iam_role.ecs_execution.id
+  policy = data.aws_iam_policy_document.ecs_execution_db_secret.json
 }
 
 resource "aws_iam_role_policy_attachment" "ecs_task_xray" {

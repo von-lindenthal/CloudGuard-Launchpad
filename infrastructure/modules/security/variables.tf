@@ -10,6 +10,10 @@ variable "alb_access_cidrs" {
   type = list(string)
 }
 
+variable "db_password_ssm_param_name" {
+  type = string
+}
+
 variable "bastion_access_cidrs" {
   type    = list(string)
   default = []
