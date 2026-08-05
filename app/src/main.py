@@ -42,7 +42,9 @@ def create_app() -> Flask:
         if isinstance(value, tuple):
             return tuple(mask_sensitive_data(item) for item in value)
 
-        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        if isinstance(value, Sequence) and not isinstance(
+            value, (str, bytes, bytearray)
+        ):
             return [mask_sensitive_data(item) for item in value]
 
         return value
@@ -82,4 +84,5 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8080")))
+    # Container runtime; 0.0.0.0 required for ECS/Docker port mapping.
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8080")))  # nosec B104
