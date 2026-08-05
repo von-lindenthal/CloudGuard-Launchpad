@@ -13,10 +13,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY app/requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app/requirements-dev.txt requirements-dev.txt
-RUN pip install --no-cache-dir -r requirements-dev.txt --no-deps
-
 COPY app/src ./src
+
+RUN useradd --no-create-home --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+USER appuser
 
 EXPOSE 8080
 
